@@ -181,8 +181,11 @@ function downloadEntry(path) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = path.split("/").pop();
+  a.style.display = "none";
+  document.body.append(a);   // older Firefox/Safari ignore detached anchors
   a.click();
-  URL.revokeObjectURL(a.href);
+  // Revoking immediately cancels the download on Safari/iOS.
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 10000);
 }
 
 function insertEntry(path) {
@@ -321,7 +324,8 @@ function startSession() {
     "start much faster.";
 
   const xterm = new Terminal({
-    fontFamily: '"Ubuntu Mono", Menlo, Consolas, monospace',
+    fontFamily: '"Ubuntu Mono", "SF Mono", Menlo, "Cascadia Mono", Consolas, ' +
+                '"DejaVu Sans Mono", "Roboto Mono", monospace',
     fontSize: window.matchMedia("(max-width: 820px)").matches ? 13 : 15,
     cursorBlink: true,
     theme: { background: "#1d1d1d", foreground: "#e6e6e6" },
@@ -420,8 +424,36 @@ document.getElementById("reset-site").addEventListener("click", async (ev) => {
 
 // Without SharedArrayBuffer the worker can't talk to the page
 // synchronously; xterm-pty would stall on every read.
-if (typeof SharedArrayBuffer === "undefined") {
+function compatProblems() {
+  const p = [];
+  if (typeof Worker === "undefined") p.push("This browser has no Web Workers.");
+  if (typeof WebAssembly === "undefined") p.push("This browser has no WebAssembly.");
+  if (typeof SharedArrayBuffer === "undefined") {
+    if (!window.isSecureContext)
+      p.push("The page is not in a secure context. Use https:// or " +
+             "http://localhost (a plain http:// address on your network, " +
+             "such as http://192.168.x.x, does not work, especially on " +
+             "phones).");
+    else if (window.crossOriginIsolated === false)
+      p.push("The page is not cross-origin isolated yet. Reload once; if " +
+             "that does not help, private/incognito mode or blocked " +
+             "service workers may be the cause.");
+    else
+      p.push("SharedArrayBuffer is unavailable. Update your browser " +
+             "(iOS/iPadOS 15.2+, Safari 15.2+, Chrome 92+, Firefox 79+).");
+  }
+  return p;
+}
+
+const problems = compatProblems();
+if (problems.length > 0) {
   loadingEl.style.display = "none";
+  for (const msg of problems) {
+    const d = document.createElement("div");
+    d.textContent = msg;
+    d.style.marginTop = "6px";
+    unsupportedEl.append(d);
+  }
   unsupportedEl.style.display = "block";
 } else {
   renderFiles();

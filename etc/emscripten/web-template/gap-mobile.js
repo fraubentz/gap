@@ -50,15 +50,17 @@
   syncViewport();
 
   // ---- key bar ----------------------------------------------------------
+  // Two zones: a pinned group (Tab, Enter) that never scrolls away, and a
+  // horizontally scrolling strip for everything else.
   // [label, bytes sent to the terminal, optional extra CSS class].
   // "\x1b[D" after a bracket pair puts the cursor between the brackets.
   const LEFT = "\x1b[D";
-  const KEYS = [
-    ["Tab", "\t", "wide"], ["↑", "\x1b[A"], ["↓", "\x1b[B"],
-    ["←", LEFT], ["→", "\x1b[C"],
+  const PINNED = [["Tab", "\t", "wide"], ["Enter", "\r", "wide enter"]];
+  const SCROLLING = [
+    ["↑", "\x1b[A"], ["↓", "\x1b[B"], ["←", LEFT], ["→", "\x1b[C"],
     [";", ";"], [":=", ":="], ["()", "()" + LEFT], ["[]", "[]" + LEFT],
     ["{}", "{}" + LEFT], ['""', '""' + LEFT], [",", ","], [".", "."],
-    ["^", "^"], ["\\", "\\"], ["Enter", "\r", "wide"],
+    ["^", "^"], ["\\", "\\"],
   ];
 
   function sendKey(data) {
@@ -70,20 +72,56 @@
     else x.paste(data);
   }
 
-  for (const [label, data, cls] of KEYS) {
+  // A key fires on pointerup, and only if the finger stayed put. Starting
+  // a swipe makes the browser cancel the pointer (touch-action: pan-x on
+  // the strip), and we also bail if it drifts more than SLOP pixels, so
+  // scrolling the strip never types anything. preventDefault on
+  // pointerdown still keeps focus in the terminal (soft keyboard stays up).
+  const SLOP = 8;
+  function makeKey([label, data, cls]) {
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = label;
     if (cls) b.className = cls;
     b.setAttribute("aria-label", label);
-    // pointerdown + preventDefault: act immediately and, crucially, keep
-    // focus in the terminal so the soft keyboard stays open.
+    let down = null;
     b.addEventListener("pointerdown", (ev) => {
       ev.preventDefault();
-      sendKey(data);
+      down = { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
+      b.classList.add("armed");
     });
-    keybar.append(b);
+    b.addEventListener("pointermove", (ev) => {
+      if (!down || ev.pointerId !== down.id) return;
+      if (Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > SLOP) {
+        down = null;
+        b.classList.remove("armed");
+      }
+    });
+    const cancel = () => { down = null; b.classList.remove("armed"); };
+    b.addEventListener("pointercancel", cancel);
+    b.addEventListener("pointerleave", cancel);
+    b.addEventListener("pointerup", (ev) => {
+      const ok = down && ev.pointerId === down.id;
+      cancel();
+      if (ok) sendKey(data);
+    });
+    // Keyboard / assistive-tech activation (no pointer events involved).
+    b.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        sendKey(data);
+      }
+    });
+    return b;
   }
+
+  const pinned = document.createElement("div");
+  pinned.className = "kb-pinned";
+  const strip = document.createElement("div");
+  strip.className = "kb-scroll";
+  for (const k of PINNED) pinned.append(makeKey(k));
+  for (const k of SCROLLING) strip.append(makeKey(k));
+  keybar.append(pinned, strip);
 
   // ---- bottom sheet -----------------------------------------------------
   function setSheet(open) {

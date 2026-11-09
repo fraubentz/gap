@@ -7,7 +7,8 @@
          keyboard opens; iOS ignores it and gap-mobile.js uses visualViewport. -->
     <meta name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-    <meta name="theme-color" content="#19181b">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#19181b" media="(prefers-color-scheme: dark)">
     <meta name="description"
           content="GAP — Groups, Algorithms, Programming — running entirely in your browser via WebAssembly.">
     <title>GAP in your browser</title>
@@ -36,6 +37,7 @@
         --border: #d2d2d7; --text: #27262b; --text-soft: #57565c;
         --link: #205caa; --logo-chip: transparent;
         --tap: 44px; /* minimum touch target */
+        --app-h: 100vh; /* fallback; dvh below where supported */
         color-scheme: light dark;
       }
       @media (prefers-color-scheme: dark) {
@@ -46,7 +48,14 @@
         }
       }
 
+      @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
       * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+      /* iOS Safari zooms the page when a focused input is under 16px. */
+      #terminal .xterm-helper-textarea { font-size: 16px !important; }
+      /* Visible keyboard focus on every platform. */
+      :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+      #terminal .xterm-helper-textarea:focus-visible { outline: none; }
       html, body { margin: 0; overscroll-behavior: none; }
       /* The app is one fixed-height column the size of the *visual*
          viewport (kept current by gap-mobile.js), so the terminal and
@@ -65,7 +74,7 @@
       }
       a { color: var(--link); }
       code {
-        font-family: "Ubuntu Mono", Menlo, Consolas, monospace;
+        font-family: "Ubuntu Mono", "SF Mono", Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Roboto Mono", monospace;
         background: var(--bg-soft); border: 1px solid var(--border);
         padding: 0 4px; border-radius: 3px;
       }
@@ -108,24 +117,41 @@
       #terminal .xterm-viewport::-webkit-scrollbar-track { background: #1d1d1d; }
       #terminal .xterm-viewport::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
 
-      /* ---- key bar: soft-keyboard helpers (touch devices / narrow screens) ---- */
+      /* ---- key bar: soft-keyboard helpers (touch devices / narrow screens) ----
+         Tab and Enter are pinned on the left; the rest scrolls sideways.
+         touch-action: pan-x lets the browser own horizontal swipes, so
+         gap-mobile.js only types a key on a clean tap. */
       #keybar {
-        display: flex; gap: 6px; overflow-x: auto; flex-shrink: 0;
+        display: flex; align-items: center; gap: 8px; flex-shrink: 0;
         padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
         background: var(--card); border-top: 1px solid var(--border);
-        scrollbar-width: none; -webkit-overflow-scrolling: touch;
       }
-      #keybar::-webkit-scrollbar { display: none; }
+      .kb-pinned { display: flex; gap: 6px; flex: 0 0 auto;
+        padding-right: 8px; border-right: 1px solid var(--border); }
+      .kb-scroll {
+        display: flex; gap: 6px; flex: 1; min-width: 0;
+        overflow-x: auto; touch-action: pan-x; overscroll-behavior-x: contain;
+        scrollbar-width: none; -webkit-overflow-scrolling: touch;
+        /* fade hint that the strip continues */
+        mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+        -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+        padding-right: 20px;
+      }
+      .kb-scroll::-webkit-scrollbar { display: none; }
       #keybar button {
         flex: 0 0 auto; min-width: var(--tap); height: var(--tap);
         padding: 0 10px; border-radius: 8px;
-        font-family: "Ubuntu Mono", Menlo, monospace; font-size: 18px;
+        font-family: "Ubuntu Mono", "SF Mono", Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Roboto Mono", monospace; font-size: 18px;
         color: var(--text); background: var(--bg-soft);
         border: 1px solid var(--border); cursor: pointer;
         user-select: none; -webkit-user-select: none;
+        -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
       }
-      #keybar button:active { background: var(--gap-crimson); color: #fff; border-color: var(--gap-crimson); }
-      #keybar button.wide { font-family: inherit; font-size: 14px; }
+      /* "armed" = finger is down and hasn't moved; drops away on swipe */
+      #keybar button.armed { background: var(--gap-crimson); color: #fff; border-color: var(--gap-crimson); }
+      #keybar button.wide { font-family: inherit; font-size: 14px; min-width: 58px; }
+      #keybar button.enter { color: var(--gap-crimson); border-color: var(--gap-crimson); font-weight: 700; }
+      #keybar button.enter.armed { color: #fff; }
 
       /* ---- side panel: bottom sheet on phones ---- */
       #backdrop {
@@ -159,7 +185,7 @@
       #file-list li { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-top: 1px solid var(--border); }
       #file-list li:first-child { border-top: none; }
       .file-text { flex: 1; min-width: 0; }
-      .file-name { display: block; font-family: "Ubuntu Mono", monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .file-name { display: block; font-family: "Ubuntu Mono", "SF Mono", Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Roboto Mono", monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .file-meta { display: block; font-size: 12px; color: var(--text-soft); }
       .icon-button {
         font-size: 16px; line-height: 1; color: var(--gap-crimson); background: transparent;
@@ -176,22 +202,74 @@
       #sheet-close { align-self: flex-end; }
       .panel-links { font-size: 13px; color: var(--text-soft); line-height: 1.9; }
 
-      /* ---- desktop: restore the side-by-side layout ---- */
+      /* ---- phone header: never wider than the screen ---- */
+      header.site-header > * { min-width: 0; }
+      .site-logo { flex: none; }
+      .site-title { flex: 0 1 auto; }
+      .site-title h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .header-spacer { flex: 1 1 0; }
+      header.site-header .gap-button { flex: none; white-space: nowrap; padding: 0 10px; font-size: 13px; }
+      @media (max-width: 480px) {
+        /* The page title is the least useful thing on a small header; the
+           logo already says what this is, and the buttons need the room. */
+        .site-title { display: none; }
+        header.site-header { gap: 6px; padding-left: 8px; padding-right: 8px; }
+      }
+
+      /* ---- desktop: terminal fills the window, side panel scrolls on its own ----
+         <body> is a grid: header and notices span the full width, then the
+         terminal (<main>) and the side panel sit side by side. The outer
+         columns centre the content at a 1440px maximum. */
       @media (min-width: 821px) {
-        body { position: static; min-height: 100vh; height: auto; overflow: auto; }
-        header.site-header { padding: 10px 20px; gap: 16px; }
-        .site-logo { height: 46px; }
-        .site-title h1 { font-size: 20px; }
-        .site-title p { display: block; }
-        .notice { margin: 12px 20px 0; }
-        main { gap: 16px; padding: 12px 20px; }
-        #terminal-wrap { min-height: 320px; padding: 8px; }
+        :root { --gutter: max(24px, calc((100vw - 1440px) / 2 + 24px)); }
+        body {
+          position: static; height: 100vh; overflow: hidden;
+          display: grid;
+          grid-template-columns: var(--gutter) minmax(0, 1fr) 300px var(--gutter);
+          grid-template-rows: auto auto minmax(0, 1fr) auto;
+          background: var(--bg-soft); padding-left: 0; padding-right: 0;
+        }
+        header.site-header {
+          grid-column: 1 / -1; grid-row: 1;
+          padding: 12px var(--gutter); gap: 16px;
+        }
+        .site-logo { height: 44px; }
+        .site-title h1 { font-size: 21px; letter-spacing: -.01em; }
+        .site-title p { display: block; max-width: 62ch; line-height: 1.4; }
+        #loading, #unsupported { grid-column: 2 / 4; grid-row: 2; margin: 12px 0 0; }
+        main {
+          grid-column: 2; grid-row: 3; min-height: 0;
+          padding: 20px 20px 24px 0;
+        }
+        #keybar { grid-column: 1 / -1; grid-row: 4; }
+        /* The terminal reads as a window: a slim title bar, then the screen. */
+        #terminal-wrap {
+          display: flex; flex-direction: column;
+          padding: 0; border: 1px solid #000; border-radius: 10px;
+          overflow: hidden; background: #1d1d1d;
+          box-shadow: 0 1px 2px rgba(0,0,0,.2), 0 12px 32px -12px rgba(0,0,0,.45);
+        }
+        #terminal-wrap::before {
+          content: "GAP"; flex: none; height: 32px; line-height: 32px;
+          padding-left: 64px; font-size: 13px; color: #9a9aa0;
+          background: #2a292e; border-bottom: 1px solid #111;
+          background-image:
+            radial-gradient(circle at 18px 50%, var(--gap-crimson) 5px, transparent 5.5px),
+            radial-gradient(circle at 38px 50%, #5c5b62 5px, transparent 5.5px);
+        }
+        #terminal { flex: 1; min-height: 0; padding: 8px 10px; }
         #menu, #sheet-close, #backdrop, #keybar { display: none; }
         #side-panel {
-          position: static; width: 290px; flex-shrink: 0; max-height: none;
-          padding: 0; background: none; border: none; border-radius: 0;
-          transform: none; visibility: visible; overflow: visible;
+          position: static; grid-column: 3; grid-row: 3; min-height: 0;
+          max-height: none; padding: 20px 0 24px; background: none; border: none; border-radius: 0;
+          transform: none; visibility: visible; overflow-y: auto; gap: 14px;
         }
+        .panel { padding: 14px 16px; border-radius: 8px; }
+        .panel h2 { font-size: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+        .example-button:hover { background: var(--bg-soft); color: var(--gap-crimson); }
+        .gap-button:hover { background: var(--gap-crimson); color: #fff; }
+        .icon-button:hover { border-color: var(--gap-crimson); }
+        #upload-button { width: 100%; }
       }
       /* Touch tablets that are wide: keep the key bar. */
       @media (min-width: 821px) and (pointer: coarse) { #keybar { display: flex; } }

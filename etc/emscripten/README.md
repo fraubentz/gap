@@ -204,3 +204,31 @@ To regenerate it after such changes:
 The bookkeeping lives in `web-template/gap-fs.js` (wraps `fetch` and
 `XMLHttpRequest.open` to report URLs to the main thread) and
 `web-template/index.html` (accumulates them onto `window.fetchedUrls`).
+
+## Platform support
+
+The page itself runs in any browser with WebAssembly, Web Workers and
+`SharedArrayBuffer` (so cross-origin isolation): desktop Chrome/Edge 92+,
+Firefox 79+, Safari 15.2+, and the mobile versions of each (iOS/iPadOS 15.2+,
+Android Chrome and Firefox). On Windows, macOS and Linux it is the same page;
+phones and tablets get the key bar and the Files/Examples bottom sheet.
+
+Things that bite on specific platforms:
+
+- **Secure context.** The service worker and `SharedArrayBuffer` need
+  `https://` or `http://localhost`. Opening the dev server from a phone via
+  `http://<lan-ip>:8080` will *not* work; use an https tunnel or host it.
+  The page now says so when this is the problem.
+- **Private/incognito windows** may block service workers or IndexedDB. The
+  page still works if the host sends the COOP/COEP headers itself, but
+  cached startup will not persist.
+- **Safari/iOS** needs `require-corp` COEP (the `credentialless` variant is
+  unsupported there); `index.html` already selects it.
+- **Building under WSL.** Run `build-in-docker.sh` inside the WSL
+  distribution, keep the checkout on the WSL filesystem (`~/gap`, not
+  `/mnt/c/...`; it is far faster), and make sure shell scripts have LF line
+  endings (`git config core.autocrlf false`, or add `*.sh text eol=lf` to
+  `.gitattributes`). `serve.py` on WSL2 is reachable from Windows browsers at
+  `http://localhost:8080/`.
+- **Apple Silicon / ARM Linux:** the build runs under amd64 emulation (see
+  Quick start); the resulting site is architecture-independent.
