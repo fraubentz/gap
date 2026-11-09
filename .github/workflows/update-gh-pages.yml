@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "disabled in fork"
+    if: github.repository == 'gap-system/gap'
 
   deploy:
     if: github.repository == 'gap-system/gap'
@@ -16,3 +17,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "disabled in fork"
+    if: github.repository == 'gap-system/gap'
