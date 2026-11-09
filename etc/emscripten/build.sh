@@ -133,9 +133,15 @@ fi
 # Copy host-built generated sources into place
 cp native-build/build/c_*.c native-build/build/ffdata.* src/
 
+# Generate sysinfo.gap before package configure helpers ask GAP for its root.
+# Package configure scripts (such as io's) validate `--with-gaproot=$BASEDIR`
+# by looking for sysinfo.gap in the root; without it they fail even though the
+# source tree itself is present.
+emmake make -j"$JOBS" sysinfo.gap
+
 # Statically link the 'io' package's kernel module into the GAP kernel.
 #
-# The wasm build has no dlopen, so a package kernel extension cannot be
+# The wasm build has no `dlopen`, so a package kernel extension cannot be
 # loaded the usual way. But GAP's loader already supports STATIC modules:
 # LoadKernelExtension("io") (in io's init.g) checks SHOW_STAT() -- the
 # list of names in CompInitFuncs[] (src/compstat.c) -- and loads a match
