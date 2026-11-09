@@ -2,266 +2,205 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- viewport-fit=cover: draw under notches (see safe-area padding below).
+         interactive-widget: Chrome/Android shrinks the layout when the soft
+         keyboard opens; iOS ignores it and gap-mobile.js uses visualViewport. -->
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+    <meta name="theme-color" content="#19181b">
     <meta name="description"
           content="GAP — Groups, Algorithms, Programming — running entirely in your browser via WebAssembly.">
     <title>GAP in your browser</title>
     <link rel="icon" href="vendor/favicon.svg" type="image/svg+xml">
     <script>
-      // Configure coi-serviceworker (see below): everything this site
-      // loads is same-origin, so plain COEP require-corp suffices.
-      // Requesting "credentialless" first would break the first load on
-      // WebKit (Safari/iOS), which doesn't support that COEP value.
+      // Unchanged: coi-serviceworker configuration (see the original page).
       window.coi = { coepCredentialless: () => false };
     </script>
     <script src="coi-serviceworker.js"></script>
     <link rel="stylesheet" href="vendor/xterm.css">
     <style>
-      /* Fonts and colours follow www.gap-system.org (Ubuntu fonts,
-         crimson #dc143c accents; dark palette from its darkgap scheme). */
-      @font-face {
-        font-family: "Ubuntu";
-        font-style: normal; font-weight: 400; font-display: swap;
-        src: url("vendor/fonts/Ubuntu-Regular.woff2") format("woff2");
-      }
-      @font-face {
-        font-family: "Ubuntu";
-        font-style: normal; font-weight: 700; font-display: swap;
-        src: url("vendor/fonts/Ubuntu-Bold.woff2") format("woff2");
-      }
-      @font-face {
-        font-family: "Ubuntu";
-        font-style: italic; font-weight: 400; font-display: swap;
-        src: url("vendor/fonts/Ubuntu-Italic.woff2") format("woff2");
-      }
-      @font-face {
-        font-family: "Ubuntu Mono";
-        font-style: normal; font-weight: 400; font-display: swap;
-        src: url("vendor/fonts/UbuntuMono-Regular.woff2") format("woff2");
-      }
-      @font-face {
-        font-family: "Ubuntu Mono";
-        font-style: normal; font-weight: 700; font-display: swap;
-        src: url("vendor/fonts/UbuntuMono-Bold.woff2") format("woff2");
-      }
+      @font-face { font-family: "Ubuntu"; font-style: normal; font-weight: 400; font-display: swap;
+        src: url("vendor/fonts/Ubuntu-Regular.woff2") format("woff2"); }
+      @font-face { font-family: "Ubuntu"; font-style: normal; font-weight: 700; font-display: swap;
+        src: url("vendor/fonts/Ubuntu-Bold.woff2") format("woff2"); }
+      @font-face { font-family: "Ubuntu"; font-style: italic; font-weight: 400; font-display: swap;
+        src: url("vendor/fonts/Ubuntu-Italic.woff2") format("woff2"); }
+      @font-face { font-family: "Ubuntu Mono"; font-style: normal; font-weight: 400; font-display: swap;
+        src: url("vendor/fonts/UbuntuMono-Regular.woff2") format("woff2"); }
+      @font-face { font-family: "Ubuntu Mono"; font-style: normal; font-weight: 700; font-display: swap;
+        src: url("vendor/fonts/UbuntuMono-Bold.woff2") format("woff2"); }
 
       :root {
         --gap-crimson: #dc143c;
-        --bg: #ffffff;
-        --bg-soft: #f7f7f7;
-        --card: #ffffff;
-        --border: #d2d2d7;
-        --text: #27262b;
-        --text-soft: #57565c;
-        --link: #205caa;
-        --logo-chip: transparent;
+        --bg: #ffffff; --bg-soft: #f7f7f7; --card: #ffffff;
+        --border: #d2d2d7; --text: #27262b; --text-soft: #57565c;
+        --link: #205caa; --logo-chip: transparent;
+        --tap: 44px; /* minimum touch target */
+        color-scheme: light dark;
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #19181b;
-          --bg-soft: #232227;
-          --card: #232227;
-          --border: #44434a;
-          --text: #e9e6cc;
-          --text-soft: #b4b1a0;
-          --link: #8ab4e8;
-          --logo-chip: #f7f7f7;
+          --bg: #19181b; --bg-soft: #232227; --card: #232227;
+          --border: #44434a; --text: #e9e6cc; --text-soft: #b4b1a0;
+          --link: #8ab4e8; --logo-chip: #f7f7f7;
         }
       }
 
       * { box-sizing: border-box; }
+      html, body { margin: 0; overscroll-behavior: none; }
+      /* The app is one fixed-height column the size of the *visual*
+         viewport (kept current by gap-mobile.js), so the terminal and
+         key bar sit just above the soft keyboard and the page never
+         scrolls. 100dvh is the fallback before the script runs. */
       body {
-        margin: 0;
-        font-family: "Ubuntu", -apple-system, "Segoe UI", Roboto,
-                     "Helvetica Neue", Arial, sans-serif;
-        color: var(--text);
-        background: var(--bg-soft);
-        display: flex;
-        flex-direction: column;
-        min-height: 100vh;
+        position: fixed; left: 0; right: 0;
+        top: var(--app-top, 0px);
+        height: var(--app-h, 100dvh);
+        display: flex; flex-direction: column;
+        overflow: hidden;
+        font-family: "Ubuntu", -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: var(--text); background: var(--bg-soft);
+        padding-left: env(safe-area-inset-left, 0px);
+        padding-right: env(safe-area-inset-right, 0px);
       }
       a { color: var(--link); }
       code {
         font-family: "Ubuntu Mono", Menlo, Consolas, monospace;
-        background: var(--bg-soft);
-        border: 1px solid var(--border);
-        padding: 0 4px;
-        border-radius: 3px;
+        background: var(--bg-soft); border: 1px solid var(--border);
+        padding: 0 4px; border-radius: 3px;
       }
+      button { font: inherit; touch-action: manipulation; }
 
+      /* ---- header: compact on phones ---- */
       header.site-header {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 10px 20px;
-        background: var(--card);
-        border-bottom: 2px solid var(--gap-crimson);
+        display: flex; align-items: center; gap: 8px;
+        padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 6px;
+        background: var(--card); border-bottom: 2px solid var(--gap-crimson);
       }
-      .site-logo {
-        height: 46px;
-        background: var(--logo-chip);
-        border-radius: 6px;
-        padding: 2px 4px;
-      }
-      .site-title h1 { margin: 0; font-size: 20px; font-weight: 700; }
-      .site-title p { margin: 2px 0 0 0; font-size: 13px; color: var(--text-soft); }
+      .site-logo { height: 30px; background: var(--logo-chip); border-radius: 5px; padding: 2px 4px; display: block; }
+      .site-title h1 { margin: 0; font-size: 16px; font-weight: 700; }
+      .site-title p { display: none; margin: 2px 0 0; font-size: 13px; color: var(--text-soft); }
       .header-spacer { flex: 1; }
       .gap-button {
-        font: inherit;
-        font-size: 14px;
-        color: var(--gap-crimson);
-        background: transparent;
-        border: 1px solid var(--gap-crimson);
-        border-radius: 4px;
-        padding: 6px 14px;
-        cursor: pointer;
+        font-size: 14px; color: var(--gap-crimson); background: transparent;
+        border: 1px solid var(--gap-crimson); border-radius: 6px;
+        min-height: 36px; padding: 0 12px; cursor: pointer;
       }
-      .gap-button:hover { background: var(--gap-crimson); color: #fff; }
+      .gap-button:active { background: var(--gap-crimson); color: #fff; }
 
       .notice {
-        margin: 12px 20px 0 20px;
-        padding: 10px 16px;
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-left: 3px solid var(--gap-crimson);
-        border-radius: 4px;
-        font-size: 14px;
+        margin: 6px 10px 0; padding: 8px 12px;
+        background: var(--card); border: 1px solid var(--border);
+        border-left: 3px solid var(--gap-crimson); border-radius: 4px; font-size: 13px;
       }
       #unsupported { display: none; color: #b00020; border-color: #b00020; }
 
-      main {
-        flex: 1;
-        display: flex;
-        align-items: stretch;
-        gap: 16px;
-        padding: 12px 20px;
-        min-height: 0;
-      }
+      /* ---- terminal ---- */
+      main { flex: 1; min-height: 0; display: flex; padding: 6px; }
       #terminal-wrap {
-        flex: 1;
-        min-width: 0;
-        background: #1d1d1d;
-        padding: 8px;
-        border-radius: 6px;
+        flex: 1; min-width: 0; min-height: 0;
+        background: #1d1d1d; padding: 4px; border-radius: 6px;
         border: 1px solid var(--border);
-        min-height: 320px;
       }
       #terminal, #terminal .xterm { height: 100%; }
-      /* xterm's scrollbar otherwise renders as a bright white strip on
-         the dark terminal background. */
-      #terminal .xterm-viewport { scrollbar-color: #555 #1d1d1d; }
-      #terminal .xterm-viewport::-webkit-scrollbar { width: 10px; }
+      #terminal .xterm-viewport { scrollbar-color: #555 #1d1d1d; overscroll-behavior: contain; }
+      #terminal .xterm-viewport::-webkit-scrollbar { width: 8px; }
       #terminal .xterm-viewport::-webkit-scrollbar-track { background: #1d1d1d; }
-      #terminal .xterm-viewport::-webkit-scrollbar-thumb {
-        background: #555;
-        border-radius: 5px;
-      }
+      #terminal .xterm-viewport::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
 
+      /* ---- key bar: soft-keyboard helpers (touch devices / narrow screens) ---- */
+      #keybar {
+        display: flex; gap: 6px; overflow-x: auto; flex-shrink: 0;
+        padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+        background: var(--card); border-top: 1px solid var(--border);
+        scrollbar-width: none; -webkit-overflow-scrolling: touch;
+      }
+      #keybar::-webkit-scrollbar { display: none; }
+      #keybar button {
+        flex: 0 0 auto; min-width: var(--tap); height: var(--tap);
+        padding: 0 10px; border-radius: 8px;
+        font-family: "Ubuntu Mono", Menlo, monospace; font-size: 18px;
+        color: var(--text); background: var(--bg-soft);
+        border: 1px solid var(--border); cursor: pointer;
+        user-select: none; -webkit-user-select: none;
+      }
+      #keybar button:active { background: var(--gap-crimson); color: #fff; border-color: var(--gap-crimson); }
+      #keybar button.wide { font-family: inherit; font-size: 14px; }
+
+      /* ---- side panel: bottom sheet on phones ---- */
+      #backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,.45);
+        opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 20;
+      }
+      #backdrop.open { opacity: 1; pointer-events: auto; }
       #side-panel {
-        width: 290px;
-        flex-shrink: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 21;
+        max-height: 80%; overflow-y: auto; overscroll-behavior: contain;
+        display: flex; flex-direction: column; gap: 10px;
+        padding: 12px 10px calc(12px + env(safe-area-inset-bottom, 0px));
+        background: var(--bg-soft); border-top: 2px solid var(--gap-crimson);
+        border-radius: 14px 14px 0 0;
+        transform: translateY(105%); transition: transform .22s ease-out;
+        visibility: hidden;
+      }
+      #side-panel.open { transform: none; visibility: visible; }
+      @media (prefers-reduced-motion: reduce) {
+        #side-panel, #backdrop { transition: none; }
       }
       .panel {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        padding: 12px 14px;
-        font-size: 14px;
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: 6px; padding: 12px 14px; font-size: 14px;
       }
-      .panel h2 {
-        margin: 0 0 8px 0;
-        font-size: 14px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: var(--gap-crimson);
-      }
-      .panel p.hint { margin: 8px 0 0 0; font-size: 12.5px; color: var(--text-soft); }
+      .panel h2 { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--gap-crimson); }
+      .panel p { margin: 8px 0 0; line-height: 1.45; }
+      .panel p.hint { font-size: 12.5px; color: var(--text-soft); }
       #files-empty { margin: 4px 0; font-size: 13px; color: var(--text-soft); }
-      #file-list, #example-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-      }
-      #file-list li {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 5px 0;
-        border-top: 1px solid var(--border);
-      }
+      #file-list, #example-list { list-style: none; margin: 0; padding: 0; }
+      #file-list li { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-top: 1px solid var(--border); }
       #file-list li:first-child { border-top: none; }
       .file-text { flex: 1; min-width: 0; }
-      .file-name {
-        display: block;
-        font-family: "Ubuntu Mono", monospace;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
+      .file-name { display: block; font-family: "Ubuntu Mono", monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .file-meta { display: block; font-size: 12px; color: var(--text-soft); }
       .icon-button {
-        font: inherit;
-        font-size: 15px;
-        line-height: 1;
-        color: var(--gap-crimson);
-        background: transparent;
-        border: 1px solid var(--border);
-        border-radius: 4px;
-        padding: 4px 7px;
-        cursor: pointer;
+        font-size: 16px; line-height: 1; color: var(--gap-crimson); background: transparent;
+        border: 1px solid var(--border); border-radius: 6px;
+        min-width: var(--tap); height: var(--tap); cursor: pointer;
       }
-      .icon-button:hover { border-color: var(--gap-crimson); }
-      #example-list li { padding: 2px 0; }
       .example-button {
-        font: inherit;
-        font-size: 13.5px;
-        width: 100%;
-        text-align: left;
-        color: var(--text);
-        background: transparent;
-        border: none;
-        border-radius: 4px;
-        padding: 5px 6px;
-        cursor: pointer;
+        width: 100%; min-height: var(--tap); text-align: left; font-size: 15px;
+        color: var(--text); background: transparent; border: none;
+        border-radius: 6px; padding: 0 8px; cursor: pointer;
       }
-      .example-button:hover { background: var(--bg-soft); color: var(--gap-crimson); }
+      .example-button:active { background: var(--bg-soft); color: var(--gap-crimson); }
+      #upload-button { min-height: var(--tap); }
+      #sheet-close { align-self: flex-end; }
+      .panel-links { font-size: 13px; color: var(--text-soft); line-height: 1.9; }
 
-      details.about {
-        margin: 0 20px 12px 20px;
-        padding: 10px 16px;
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        font-size: 14px;
+      /* ---- desktop: restore the side-by-side layout ---- */
+      @media (min-width: 821px) {
+        body { position: static; min-height: 100vh; height: auto; overflow: auto; }
+        header.site-header { padding: 10px 20px; gap: 16px; }
+        .site-logo { height: 46px; }
+        .site-title h1 { font-size: 20px; }
+        .site-title p { display: block; }
+        .notice { margin: 12px 20px 0; }
+        main { gap: 16px; padding: 12px 20px; }
+        #terminal-wrap { min-height: 320px; padding: 8px; }
+        #menu, #sheet-close, #backdrop, #keybar { display: none; }
+        #side-panel {
+          position: static; width: 290px; flex-shrink: 0; max-height: none;
+          padding: 0; background: none; border: none; border-radius: 0;
+          transform: none; visibility: visible; overflow: visible;
+        }
       }
-      details.about summary { cursor: pointer; font-weight: 700; }
-      details.about[open] summary { margin-bottom: 8px; }
-      details.about p { margin: 8px 0; line-height: 1.45; max-width: 95ch; }
-
-      footer.site-footer {
-        padding: 12px 20px;
-        background: var(--card);
-        border-top: 1px solid var(--border);
-        font-size: 13px;
-        color: var(--text-soft);
-      }
-
-      @media (max-width: 820px) {
-        main { flex-direction: column; }
-        #terminal-wrap { height: 60vh; }
-        #side-panel { width: auto; }
-      }
+      /* Touch tablets that are wide: keep the key bar. */
+      @media (min-width: 821px) and (pointer: coarse) { #keybar { display: flex; } }
     </style>
   </head>
   <body>
     <header class="site-header">
       <a href="https://www.gap-system.org" title="www.gap-system.org">
-        <img class="site-logo" src="vendor/gaplogo.svg"
-             alt="GAP — Groups, Algorithms, Programming">
+        <img class="site-logo" src="vendor/gaplogo.svg" alt="GAP — Groups, Algorithms, Programming">
       </a>
       <div class="site-title">
         <h1>GAP in your browser</h1>
@@ -270,14 +209,12 @@
            <a href="https://www.gap-system.org/install/">install GAP</a>.</p>
       </div>
       <div class="header-spacer"></div>
+      <button id="menu" class="gap-button" aria-controls="side-panel" aria-expanded="false">Files &amp; examples</button>
       <button id="restart" class="gap-button"
-              title="Stop GAP and start a fresh session (the only way to interrupt a runaway computation)">
-        Restart GAP
-      </button>
+              title="Stop GAP and start a fresh session (the only way to interrupt a runaway computation)">Restart</button>
     </header>
 
     <div id="loading" class="notice">Loading GAP…</div>
-
     <div id="unsupported" class="notice">
       This page needs <code>SharedArrayBuffer</code>, which is only
       available when the page is served with the headers
@@ -290,86 +227,65 @@
     </div>
 
     <main>
-      <div id="terminal-wrap">
-        <div id="terminal"></div>
-      </div>
-
-      <aside id="side-panel">
-        <section class="panel">
-          <h2>Files</h2>
-          <button id="upload-button" class="gap-button">⬆ Upload file…</button>
-          <input id="upload-input" type="file" multiple hidden>
-          <p id="files-empty">Files you upload, or create from GAP (e.g.
-            with <code>PrintTo</code> or <code>LogTo</code>), appear
-            here.</p>
-          <ul id="file-list"></ul>
-          <p class="hint">↳ inserts <code>Read("file");</code> at the
-            prompt (press Enter to run it); ⬇ downloads the file. New
-            files show up when GAP next waits for input. Files live only
-            in this session — download anything you want to keep.</p>
-        </section>
-
-        <section class="panel">
-          <h2>Examples</h2>
-          <ul id="example-list"></ul>
-          <p class="hint">Inserts the command at the prompt; press Enter
-            to run it.</p>
-        </section>
-      </aside>
+      <div id="terminal-wrap"><div id="terminal"></div></div>
     </main>
 
-    <details class="about">
-      <summary>What is this? &middot; Licensing</summary>
-      <p>
-        <a href="https://www.gap-system.org">GAP</a> is a system for
-        computational discrete algebra, with particular emphasis on
-        computational group theory. This page is a self-contained
-        WebAssembly build, served as a static site and run inside a
-        Web Worker; you interact with it through an
-        <a href="https://github.com/mame/xterm-pty">xterm-pty</a>
-        terminal.
-      </p>
-      <p>
-        To get started, try <code>1+1;</code>,
-        <code>Factorial(20);</code>, or <code>SymmetricGroup(5);</code> —
-        or use the examples menu. The full
-        <a href="https://www.gap-system.org/doc/">GAP manuals</a> apply,
-        with some caveats: some packages won't load (anything that needs
-        a native compiler or system library), working memory is capped,
-        performance is reduced compared to a native build, and a running
-        computation cannot be interrupted — the Restart button is the
-        only way out of a loop.
-      </p>
-      <p>
-        Files downloaded on first visit are cached in your browser's
-        IndexedDB, so subsequent visits start much faster. Clear the
-        site data to reset the cache. Files you create in a session are
-        <em>not</em> kept across reloads or restarts beyond the panel's
-        download cache.
-      </p>
-      <p>
-        GAP is free software, distributed under the
-        <a href="LICENSE">GNU General Public License</a> (version 2 or
-        later). See the <a href="COPYRIGHT">copyright notice</a> for
-        the full statement. The Ubuntu fonts are distributed under the
-        <a href="vendor/fonts/UFL.txt">Ubuntu Font Licence</a>.
-      </p>
-    </details>
+    <!-- Buttons are filled in by gap-mobile.js -->
+    <div id="keybar" role="toolbar" aria-label="Extra keys"></div>
 
-    <footer class="site-footer">
-      <a href="https://www.gap-system.org">GAP main site</a> ·
-      <a href="https://www.gap-system.org/doc/">Documentation</a> ·
-      <a href="https://www.gap-system.org/install/">Installation</a> ·
-      <a href="https://github.com/gap-system/gap">Source on GitHub</a> ·
-      <a href="https://www.gap-system.org/copyright/">Copyright</a> ·
-      <a href="#" id="reset-site"
-         title="Discard the browser's cached GAP files and service worker, then reload — use this if the page is stuck or broken">Reset
-        cached data</a>
-    </footer>
+    <div id="backdrop"></div>
+    <aside id="side-panel" aria-label="Files, examples and information">
+      <button id="sheet-close" class="gap-button">Close</button>
+
+      <section class="panel">
+        <h2>Files</h2>
+        <button id="upload-button" class="gap-button">Upload file…</button>
+        <input id="upload-input" type="file" multiple hidden>
+        <p id="files-empty">Files you upload, or create from GAP (e.g.
+          with <code>PrintTo</code> or <code>LogTo</code>), appear here.</p>
+        <ul id="file-list"></ul>
+        <p class="hint">↳ inserts <code>Read("file");</code> at the prompt
+          (press Enter to run it); ⬇ downloads the file. New files show up
+          when GAP next waits for input. Files live only in this session —
+          download anything you want to keep.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Examples</h2>
+        <ul id="example-list"></ul>
+        <p class="hint">Inserts the command at the prompt; press Enter to run it.</p>
+      </section>
+
+      <section class="panel">
+        <h2>About</h2>
+        <p><a href="https://www.gap-system.org">GAP</a> is a system for
+          computational discrete algebra, here compiled to WebAssembly and
+          run in a Web Worker, with an
+          <a href="https://github.com/mame/xterm-pty">xterm-pty</a> terminal.
+          Some packages won't load, memory is capped, and a running
+          computation can't be interrupted — Restart is the only way out
+          of a loop.</p>
+        <p>Downloaded files are cached in your browser's IndexedDB, so
+          later visits start much faster. Files you create are
+          <em>not</em> kept across reloads or restarts.</p>
+        <p>GAP is distributed under the
+          <a href="LICENSE">GNU General Public License</a> (v2 or later);
+          see the <a href="COPYRIGHT">copyright notice</a>. The Ubuntu fonts
+          are under the <a href="vendor/fonts/UFL.txt">Ubuntu Font Licence</a>.</p>
+        <p class="panel-links">
+          <a href="https://www.gap-system.org/doc/">Documentation</a> ·
+          <a href="https://www.gap-system.org/install/">Install</a> ·
+          <a href="https://github.com/gap-system/gap">Source</a> ·
+          <a href="#" id="reset-site"
+             title="Discard the browser's cached GAP files and service worker, then reload — use this if the page is stuck or broken">Reset cached data</a>
+        </p>
+      </section>
+    </aside>
 
     <script src="vendor/xterm.min.js"></script>
     <script src="vendor/xterm-addon-fit.min.js"></script>
     <script src="vendor/xterm-pty/index.js"></script>
     <script src="gap-ui.js"></script>
+    <script src="gap-mobile.js"></script>
   </body>
 </html>

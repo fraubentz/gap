@@ -322,7 +322,7 @@ function startSession() {
 
   const xterm = new Terminal({
     fontFamily: '"Ubuntu Mono", Menlo, Consolas, monospace',
-    fontSize: 15,
+    fontSize: window.matchMedia("(max-width: 820px)").matches ? 13 : 15,
     cursorBlink: true,
     theme: { background: "#1d1d1d", foreground: "#e6e6e6" },
   });
